@@ -1,7 +1,7 @@
 version: 2026.232.0520
 immich-ml:
     candy:
-        version: 2026.144.1443
+        version: 2026.243.0100
         description: |
             Immich machine-learning backend serving face recognition and smart-search inference on port 3003.
             Installs the uv Python package manager, then builds a dedicated
@@ -12,7 +12,7 @@ immich-ml:
             Immich server can offload face detection and CLIP smart-search
             embedding to this backend.
         require:
-            - '@github.com/opencharly/pod-immich:v2026.237.806'
+            - '@github.com/opencharly/pod-immich:v2026.243.0410'
         env:
             IMMICH_MACHINE_LEARNING_ENABLED: "true"
             IMMICH_MACHINE_LEARNING_URL: "http://127.0.0.1:3003"
