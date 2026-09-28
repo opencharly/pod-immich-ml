@@ -1,7 +1,5 @@
-version: 2026.249.2125
 immich-ml:
     candy:
-        version: 2026.243.0100
         description: |
             Immich machine-learning backend serving face recognition and smart-search inference on port 3003.
             Installs the uv Python package manager, then builds a dedicated
