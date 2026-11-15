@@ -1,148 +1,24 @@
-immich-ml:
+pod-immich-ml:
     candy:
-        description: |
-            Immich machine-learning backend serving face recognition and smart-search inference on port 3003.
-            Installs the uv Python package manager, then builds a dedicated
-            virtualenv at /opt/immich/machine-learning/.venv and installs the
-            immich_ml module from the pinned Immich source release. A supervised
-            immich-ml service runs `python -m immich_ml`, exposing the ML
-            inference API on port 3003 (its /ping endpoint answers "pong") so the
-            Immich server can offload face detection and CLIP smart-search
-            embedding to this backend.
-        require:
-            - '@github.com/opencharly/pod-immich:v2026.274.0650'
-        env:
-            IMMICH_MACHINE_LEARNING_ENABLED: "true"
-            IMMICH_MACHINE_LEARNING_URL: "http://127.0.0.1:3003"
-            MACHINE_LEARNING_HOST: "0.0.0.0"
-            MACHINE_LEARNING_PORT: "3003"
-            MACHINE_LEARNING_WORKERS: "1"
-            MACHINE_LEARNING_WORKER_TIMEOUT: "120"
-            TRANSFORMERS_CACHE: "~/.immich/models"
-        port:
-            - 3003
-        volume:
-            - name: models
-              path: "~/.immich/models"
-        var:
-            IMMICH_VERSION: v2.7.5
-        service:
-            - name: immich-ml
-              exec: "bash -c 'export PATH=/opt/immich/machine-learning/.venv/bin:$PATH VIRTUAL_ENV=/opt/immich/machine-learning/.venv && python -m immich_ml'"
-              env:
-                IMMICH_HOST: 0.0.0.0
-                IMMICH_PORT: 3003
-              restart: always
-              working_directory: /opt/immich/machine-learning
-              priority: 40
-              enable: true
-              scope: system
-        plan:
-            - run: download=https://astral.sh/uv/install.sh
-              download: "https://astral.sh/uv/install.sh"
-              extract: sh
-              env:
-                UV_INSTALL_DIR: /usr/local/bin
-              run_as: root
-            - run: |
-                command=curl -fL --retry 3 --retry-delay 2 "https://github.com/immich-app/immich/archive/refs/tags/${IMMICH_VERSION}.tar.gz" | tar xz -C /tmp
-                mv /tmp/immich-$(echo ${IMMICH_VERSION} | sed 's/^v//') /tmp/immich
-              run_as: root
-              command: |
-                curl -fL --retry 3 --retry-delay 2 "https://github.com/immich-app/immich/archive/refs/tags/${IMMICH_VERSION}.tar.gz" | tar xz -C /tmp
-                mv /tmp/immich-$(echo ${IMMICH_VERSION} | sed 's/^v//') /tmp/immich
-            - run: |
-                command=uv venv /opt/immich/machine-learning/.venv
-                cd /tmp/immich/machine-learning && VIRTUAL_ENV=/opt/immich/machine-learning/.venv uv pip install ".[cpu]"
-                cp -r /tmp/immich/machine-learning/immich_ml /opt/immich/machine-learning/
-                rm -rf /tmp/immich
-              run_as: root
-              command: |
-                uv venv /opt/immich/machine-learning/.venv
-                cd /tmp/immich/machine-learning && VIRTUAL_ENV=/opt/immich/machine-learning/.venv uv pip install ".[cpu]"
-                cp -r /tmp/immich/machine-learning/immich_ml /opt/immich/machine-learning/
-                rm -rf /tmp/immich
-            - run: mkdir=${HOME}/.immich/models
-              mkdir: "${HOME}/.immich/models"
-              run_as: "${USER}"
-            - run: mkdir=${HOME}/.cache/immich_ml
-              mkdir: "${HOME}/.cache/immich_ml"
-              run_as: "${USER}"
-            - check: the dedicated machine-learning virtualenv ships a python interpreter
-              file:
-                file: /opt/immich/machine-learning/.venv/bin/python
-                exists: true
-            - check: the immich_ml inference module is installed into the machine-learning tree
-              file:
-                file: /opt/immich/machine-learning/immich_ml
-                filetype: directory
-            - check: the uv package manager that built the venv is on the system PATH
-              file:
-                file: /usr/local/bin/uv
-                exists: true
-            - check: the per-user model cache directory is provisioned under the home tree
-              file:
-                file: ${HOME}/.immich/models
-                filetype: directory
-            - check: the supervised immich-ml service is running
-              context:
-                - runtime
-              service:
-                service: immich-ml
-                running: true
-            - check: the ML inference API answers its health probe on port 3003 with pong
-              exit_status: 0
-              stdout:
-                - contains: pong
-              context:
-                - runtime
-              command:
-                command: curl -fsS http://127.0.0.1:3003/ping
-                in_container: true
-            - check: service=immich-ml
-              id: immich-ml-service-running
-              context:
-                - runtime
-              service:
-                service: immich-ml
-                running: true
-            - check: command=curl -fsS -o /dev/null -w "%{http_code}" http://127.0.0.1:3003/ping
-              id: immich-ml-internal-port
-              exit_status: 0
-              stdout:
-                - equals: "200"
-              context:
-                - runtime
-              command:
-                command: curl -fsS -o /dev/null -w "%{http_code}" http://127.0.0.1:3003/ping
-                in_container: true
-
-immich-ml-skill:
-    skill:
-        name: immich-ml
-        family: immich
-        owner: immich-ml
         description: |-
-            Immich photo management with CUDA ML backend for face recognition
-            and smart search. Includes PostgreSQL, Redis, and the immich-ml service.
-            MUST be invoked before building, deploying, configuring, or troubleshooting the immich-ml box.
-
-# ---------------------------------------------------------------------------
-# The verb/schema skills this repo's own candy owns — routing only.
-#
-# Each node carries `name`/`family`/`owner` (plus `triggers:` where the skill
-# generates DISPATCHER.md rows). The prose is the skill FILE at
-# `<repo root>/.agents/skills/<name>/SKILL.md`, never an inline `description:`
-# or `content:` — an inline body that disagrees with its file is a hard error
-# in the marketplace generator. `family:` is the marketplace family the skill
-# was authored under, kept so every existing `/charly-<family>:<name>` address
-# still resolves; `owner:` names the candy whose command/kind surface the
-# skill documents. This candy composes no image, so these nodes add nothing to
-# any `ai.opencharly.skill` OCI label; the bodies reach consumers through the
-# generated marketplace corpus.
-# ---------------------------------------------------------------------------
-immich-ml-layer-skill:
-    skill:
-        name: immich-ml-layer
-        family: immich
-        owner: immich-ml
+            Retired candy — this repo ships no Immich machine-learning backend any more.
+            The `immich-ml` candy (its `require:` on pod-immich, its MACHINE_LEARNING_* env,
+            the 3003 port, the models volume, the supervised immich-ml service and its
+            check: steps), its two `skill:` entities and both `.agents/skills/` files are
+            deleted: Immich v3.4.1 carries the ML backend in-process in the ONE `immich`
+            image owned by opencharly/pod-immich (supervised `immich-ml` on port 3003, CUDA
+            on the CachyOS GPU base), so a separate image has nothing left to install.
+            Tracking issue: opencharly/pod-immich#12.
+            What remains is this documentation-only no-op, so the repo still validates as a
+            project while its retirement awaits the operator (opencharly/opencharly#600).
+            Nothing is authored, built, deployed or consumed here.
+        plan:
+            - run: this documentation-only candy ships no install content (it records the immich-ml candy's retirement); validate-satisfying no-op
+              command: "true"
+              context:
+                - build
+            - check: no-op — the immich-ml candy, its service, port, volume and both skill nodes are deleted; the ML backend is part of the single immich image in opencharly/pod-immich (opencharly/pod-immich#12)
+              id: pod-immich-ml-retired
+              context:
+                - build
+              command: "true"
